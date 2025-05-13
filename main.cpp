@@ -1,10 +1,91 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <chrono>
 #include "delaunay.h"
 
-using std::cout;
-using std::endl;
+using namespace std;
+
+void test(const string &filename, int num_points) {
+    vector<Point> input_points;
+    ifstream file(filename);
+    string line;
+
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << endl;
+        return;
+    }
+
+    int total_points;
+    getline(file, line);
+    stringstream(line) >> total_points;
+
+    vector<double> times;
+    int points_read = 0;
+
+    while (points_read < total_points && getline(file, line)) {
+        stringstream ss(line);
+        double x, y;
+        char delimiter;
+        ss >> x >> delimiter >> y;
+
+        input_points.push_back(Point(x, y));
+        points_read++;
+
+        if (input_points.size() == num_points) {
+            bool duplicated = false;
+            for (int i = 0; i < input_points.size(); i++) {
+                for (int j = 0; j < input_points.size(); j++) {
+                    if (i!=j && input_points[i].x == input_points[j].x && input_points[i].y == input_points[j].y) {
+                        duplicated = true;
+                        break;
+                    }
+                }
+            }
+            if (duplicated) {
+                input_points.clear();
+                continue;
+            }
+            auto start = chrono::high_resolution_clock::now();
+            const vector<Triangle> triangles = triangulate(input_points);
+            auto end = chrono::high_resolution_clock::now();
+            chrono::duration<double> duration = end - start;
+
+            times.push_back(duration.count());
+            input_points.clear();
+        }
+    }
+
+    file.close();
+
+    double total_time = 0.0;
+    double max_time = 0.0;
+    for (const double time: times) {
+        total_time += time;
+        if (time > max_time) {
+            max_time = time;
+        }
+    }
+
+    double average_time = total_time / static_cast<double>(times.size());
+
+    ofstream result_file("test/RESULT_SWEEP_CIRCLE.cpu");
+    if (result_file.is_open()) {
+        result_file << "Numero de casos " << num_points << endl;
+        result_file << "Tiempo total " << total_time << endl;
+        result_file << "Tiempo promedio " << average_time << endl;
+        result_file << "Tiempo max " << max_time << endl;
+        result_file.close();
+        cout << "Results saved in test/RESULT_SWEEP_CIRCLE.cpu" << endl;
+    } else {
+        cerr << "Error opening result file." << endl;
+    }
+}
 
 int main() {
+    test("test/input(10000000).pnt", 5);
+    return 0;
     std::vector<Point> input_points = {
         {2.5, 3.45},
         {1.97, 0.47},
@@ -107,6 +188,13 @@ int main() {
         {9.085960501445257, 2.613348945040678},
         {3.911571107866353, 4.945148251342728},
         {2.1582050766222554, 6.903733130116025}
+    };
+    input_points = {
+        {9.0637836, 7.25551942},
+        {2.40041717, 1.03582779},
+        {3.91197039, 2.49222533},
+        {3.3938918, 7.29552673},
+        {1.73337936, 8.16798663}
     };
 
 
