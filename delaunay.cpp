@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 #include <set>
+#include <stack>
 #include "frontier.h"
 #include "geometry.h"
 
@@ -29,12 +30,11 @@ std::vector<PolarPoint> calculate_polar_coords(const std::vector<Point> &points,
 }
 
 void sort_points(std::vector<PolarPoint> &points) {
-    std::ranges::sort(points,
-                      [](const PolarPoint &a, const PolarPoint &b) {
-                          if (std::abs(a.r - b.r) > EPS)
-                              return a.r < b.r;
-                          return a.theta < b.theta;
-                      });
+    std::sort(points.begin(), points.end(), [](const PolarPoint &a, const PolarPoint &b) {
+        if (std::abs(a.r - b.r) > EPS)
+            return a.r < b.r;
+        return a.theta < b.theta;
+    });
 }
 
 

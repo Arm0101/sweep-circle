@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <optional>
 #include "geometry.h"
 #include "edgekey.h"
 

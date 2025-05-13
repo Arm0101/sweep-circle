@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 #include "frontier.h"
 #include "geometry.h"
 
