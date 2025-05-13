@@ -38,79 +38,96 @@ void sort_points(std::vector<PolarPoint> &points) {
 }
 
 
-void legalize(const size_t &tri_index, const std::vector<Point> &input_points, std::vector<Triangle> &triangles,
-              Frontier &frontier) {
-    const Triangle &t = triangles[tri_index];
+void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
+              std::vector<Triangle> &triangles, Frontier &frontier) {
+    std::stack<size_t> to_process;
+    std::unordered_set<size_t> visited;
 
-    for (const auto &n: t.neighbors) {
-        Triangle &neighbor = triangles[n];
-        for (int i = 0; i < 3; ++i) {
-            size_t va, vb, vc;
-            if (i == 0) {
-                va = t.v1;
-                vb = t.v2;
-                vc = t.v3;
-            } else if (i == 1) {
-                va = t.v2;
-                vb = t.v3;
-                vc = t.v1;
-            } else {
-                va = t.v3;
-                vb = t.v1;
-                vc = t.v2;
+    to_process.push(tri_index);
+
+    while (!to_process.empty()) {
+        size_t current_index = to_process.top();
+        to_process.pop();
+
+        if (visited.contains(current_index)) continue;
+        visited.insert(current_index);
+
+        Triangle &t = triangles[current_index];
+
+        for (size_t n: t.neighbors) {
+            Triangle &neighbor = triangles[n];
+            bool flipped = false;
+
+            for (int i = 0; i < 3; ++i) {
+                size_t va, vb, vc;
+                if (i == 0) {
+                    va = t.v1;
+                    vb = t.v2;
+                    vc = t.v3;
+                } else if (i == 1) {
+                    va = t.v2;
+                    vb = t.v3;
+                    vc = t.v1;
+                } else {
+                    va = t.v3;
+                    vb = t.v1;
+                    vc = t.v2;
+                }
+
+
+                // va-vc opposite in neighbor triangle
+                size_t vn;
+                if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
+                                                neighbor.v3 == vc && neighbor.v2 == va)))
+                    vn = neighbor.v1;
+                else if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
+                                                     neighbor.v3 == vc && neighbor.v1 == va)))
+                    vn = neighbor.v2;
+                else if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
+                                                     neighbor.v2 == vc && neighbor.v1 == va)))
+                    vn = neighbor.v3;
+                else continue;
+
+                // check vn -> va-vb-vc
+                if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
+                    frontier.unmark_edge(va, vc);
+                    const size_t tri_index1 = current_index;
+                    const size_t tri_index2 = n;
+
+                    std::vector _n1 = {tri_index1};
+                    if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
+                        _n1.emplace_back(t_1);
+                    if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
+                        _n1.emplace_back(t_2);
+
+                    const Triangle new1 = {vn, va, vb, _n1};
+
+                    std::vector _n2 = {tri_index2};
+                    if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
+                        _n1.emplace_back(t_3);
+                    if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
+                        _n1.emplace_back(t_4);
+                    const Triangle new2 = {vn, vb, vc, _n2};
+
+                    frontier.insert_edge(vn, vb, tri_index);
+
+                    triangles[tri_index2] = new1;
+                    frontier.unmark_edge(vn, va);
+                    frontier.unmark_edge(va, vb);
+                    frontier.insert_edge(vn, va, tri_index2);
+                    frontier.insert_edge(va, vb, tri_index2);
+                    triangles[tri_index1] = new2;
+                    frontier.unmark_edge(vn, vc);
+                    frontier.unmark_edge(vb, vc);
+                    frontier.insert_edge(vn, vc, tri_index1);
+                    frontier.insert_edge(vb, vc, tri_index1);
+                    flipped = true;
+                    break;
+                }
             }
 
-
-            // va-vc opposite in neighbor triangle
-            size_t vn;
-            if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
-                                            neighbor.v3 == vc && neighbor.v2 == va)))
-                vn = neighbor.v1;
-            else if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
-                                                 neighbor.v3 == vc && neighbor.v1 == va)))
-                vn = neighbor.v2;
-            else if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
-                                                 neighbor.v2 == vc && neighbor.v1 == va)))
-                vn = neighbor.v3;
-            else continue;
-
-            // check vn -> va-vb-vc
-            if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
-                frontier.unmark_edge(va, vc);
-                const size_t tri_index1 = tri_index;
-                const size_t tri_index2 = n;
-
-                std::vector _n1 = {tri_index1};
-                if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
-                    _n1.emplace_back(t_1);
-                if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
-                    _n1.emplace_back(t_2);
-
-                const Triangle new1 = {vn, va, vb, _n1};
-
-                std::vector _n2 = {tri_index2};
-                if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
-                    _n1.emplace_back(t_3);
-                if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
-                    _n1.emplace_back(t_4);
-                const Triangle new2 = {vn, vb, vc, _n2};
-
-                frontier.insert_edge(vn, vb, tri_index);
-
-                triangles[tri_index2] = new1;
-                frontier.unmark_edge(vn, va);
-                frontier.unmark_edge(va, vb);
-                frontier.insert_edge(vn, va, tri_index2);
-                frontier.insert_edge(va, vb, tri_index2);
-                triangles[tri_index1] = new2;
-                frontier.unmark_edge(vn, vc);
-                frontier.unmark_edge(vb, vc);
-                frontier.insert_edge(vn, vc, tri_index1);
-                frontier.insert_edge(vb, vc, tri_index1);
-
-                for (const auto &_n: triangles[n].neighbors) {
-                    legalize(_n, input_points, triangles, frontier);
-                }
+            if (!flipped && !visited.contains(n)) {
+                to_process.push(n);
             }
         }
     }
@@ -211,9 +228,17 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     frontier.insert_edge(i2_index, i0_index, 0);
     // Triangulation
 
-    for (size_t i = 3; i < points.size(); i++) {
-        Point p = input_points[points[i].index];
-        const PolarPoint pp = points[i];
+    for (size_t i = 0; i < points.size(); i++) {
+        const size_t index = points[i].index;
+        if (index == i0_index || index == i1_index || index == i2_index) continue;
+        Point p = input_points[index];
+        PolarPoint pp{};
+        for (const auto &_point: points) {
+            if (_point.index == index) {
+                pp = _point;
+                break;
+            }
+        }
         auto [edg, tri] = frontier.find_edge(p, O, input_points);
         auto [vl, vr] = edg;
         // create triangle i,L,R and legalize it recursively
@@ -240,7 +265,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
         triangles[tri].neighbors.emplace_back(tri_index);
 
         frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr, input_points);
-
+        // cout << "For point: " << pp.index << " " << vl->vertex_index << " " << vr->vertex_index << endl;
         legalize(tri_index, input_points, triangles, frontier);
     }
 
@@ -274,9 +299,16 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
             auto tri2 = frontier.get_edge(b->vertex_index, c->vertex_index);
 
             if (ccw(pa, pb, pc) && !frontier.is_edge(a->vertex_index, c->vertex_index)) {
-                triangles.emplace_back(Triangle{
-                    a->vertex_index, b->vertex_index, c->vertex_index, {tri1.value(), tri2.value()}
-                });
+                auto tri = Triangle{
+                    a->vertex_index, b->vertex_index, c->vertex_index, {}
+                };
+                if (tri1.has_value())
+                    tri.neighbors.emplace_back(tri1.value());
+                if (tri2.has_value())
+                    tri.neighbors.emplace_back(tri2.value());
+
+                triangles.emplace_back(tri);
+
                 const size_t tri_index = triangles.size() - 1;
                 frontier.insert_edge(a->vertex_index, b->vertex_index, tri_index);
                 frontier.insert_edge(b->vertex_index, c->vertex_index, tri_index);
