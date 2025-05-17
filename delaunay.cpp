@@ -33,7 +33,7 @@ void sort_points(std::vector<PolarPoint> &points) {
     std::sort(points.begin(), points.end(), [](const PolarPoint &a, const PolarPoint &b) {
         if (std::abs(a.r - b.r) > EPS)
             return a.r < b.r;
-        return a.theta < b.theta;
+        return a.theta > b.theta;
     });
 }
 
@@ -197,11 +197,14 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
         std::swap(i1_index, i2_index);
     }
 
-    const auto [_origin_x, _origin_y] = circumcenter(i0, i1, i2);
-    const Point origin{_origin_x, _origin_y};
+    // 4. construction of the first triangle
+    triangles.emplace_back(Triangle{i0_index, i1_index, i2_index, {}});
+
+    // center O
+    const Point O = centroid(input_points[i0_index], input_points[i1_index], input_points[i2_index]);
 
     //2. calculating the polar coordinates of input points
-    points = calculate_polar_coords(input_points, origin);
+    points = calculate_polar_coords(input_points, O);
 
     const double i0_theta = points[i0_index].theta;
     const double i1_theta = points[i1_index].theta;
@@ -209,13 +212,6 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
     //3. sorting input points in increasing distances from O
     sort_points(points);
-
-    // 4. construction of the first triangle
-    triangles.emplace_back(Triangle{i0_index, i1_index, i2_index, {}});
-
-    // center O
-    const Point O = centroid(input_points[i0_index], input_points[i1_index], input_points[i2_index]);
-
 
     //5. determination of the initial frontier.
 
@@ -226,20 +222,17 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     frontier.insert_edge(i0_index, i1_index, 0);
     frontier.insert_edge(i1_index, i2_index, 0);
     frontier.insert_edge(i2_index, i0_index, 0);
-    // Triangulation
 
-    for (size_t i = 0; i < points.size(); i++) {
-        const size_t index = points[i].index;
-        if (index == i0_index || index == i1_index || index == i2_index) continue;
-        Point p = input_points[index];
-        PolarPoint pp{};
-        for (const auto &_point: points) {
-            if (_point.index == index) {
-                pp = _point;
-                break;
-            }
-        }
-        auto [edg, tri] = frontier.find_edge(p, O, input_points);
+    std::vector<PolarPoint> points_to_process;
+    for (const auto &p: points) {
+        if (const size_t index = p.index; index == i0_index || index == i1_index || index == i2_index) continue;
+        points_to_process.emplace_back(p);
+    }
+    // points.clear();
+
+    // Triangulation
+    for (const auto &pp: points_to_process) {
+        auto [edg, tri] = frontier.find_edge(pp);
         auto [vl, vr] = edg;
         // create triangle i,L,R and legalize it recursively
         size_t _i0 = pp.index;
@@ -248,12 +241,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
         const size_t tri_index = triangles.size();
 
-        vr->triangle_index = tri_index;
-        vl->triangle_index = tri_index - 1;
-
         if (ccw(input_points[_i0], input_points[_i1], input_points[_i2])) {
-            vr->triangle_index = tri_index - 1;
-            vl->triangle_index = tri_index;
             std::swap(_i1, _i2);
         }
 
@@ -265,7 +253,6 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
         triangles[tri].neighbors.emplace_back(tri_index);
 
         frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr, input_points);
-        // cout << "For point: " << pp.index << " " << vl->vertex_index << " " << vr->vertex_index << endl;
         legalize(tri_index, input_points, triangles, frontier);
     }
 
@@ -286,8 +273,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
             if (a->vertex_index == b->vertex_index || b->vertex_index == c->vertex_index || c->vertex_index == a->
                 vertex_index) {
-                current = current->next;
-                continue;
+                break;
             }
 
             const Point &pa = input_points[a->vertex_index];
@@ -321,7 +307,8 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
                 changed = true;
                 break;
             }
-
+            if (triangles.size() == 5)
+                break;
             current = current->next;
         } while (current != start);
     }
