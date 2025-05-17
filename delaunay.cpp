@@ -228,7 +228,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
         if (const size_t index = p.index; index == i0_index || index == i1_index || index == i2_index) continue;
         points_to_process.emplace_back(p);
     }
-    // points.clear();
+    points.clear();
 
     // Triangulation
     for (const auto &pp: points_to_process) {
@@ -252,7 +252,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
         triangles[tri].neighbors.emplace_back(tri_index);
 
-        frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr, input_points);
+        frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr);
         legalize(tri_index, input_points, triangles, frontier);
     }
 
