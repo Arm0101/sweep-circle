@@ -37,6 +37,41 @@ void sort_points(std::vector<PolarPoint> &points) {
     });
 }
 
+void get_common_edge(const Triangle &t, const Triangle &neighbor, size_t &va, size_t &vb, size_t &vc, size_t &vn) {
+    for (int i = 0; i < 3; ++i) {
+        if (i == 0) {
+            va = t.v1;
+            vb = t.v2;
+            vc = t.v3;
+        } else if (i == 1) {
+            va = t.v2;
+            vb = t.v3;
+            vc = t.v1;
+        } else {
+            va = t.v3;
+            vb = t.v1;
+            vc = t.v2;
+        }
+
+
+        // va-vc opposite in neighbor triangle
+        if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
+                                        neighbor.v3 == vc && neighbor.v2 == va))) {
+            vn = neighbor.v1;
+            return;
+        }
+        if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
+                                        neighbor.v3 == vc && neighbor.v1 == va))) {
+            vn = neighbor.v2;
+            return;
+        }
+        if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
+                                        neighbor.v2 == vc && neighbor.v1 == va))) {
+            vn = neighbor.v3;
+            return;
+        }
+    }
+}
 
 void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
               std::vector<Triangle> &triangles, Frontier &frontier) {
@@ -57,73 +92,43 @@ void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
         for (size_t n: t.neighbors) {
             Triangle &neighbor = triangles[n];
             bool flipped = false;
+            size_t va, vb, vc, vn;
+            get_common_edge(t, neighbor, va, vb, vc, vn);
 
-            for (int i = 0; i < 3; ++i) {
-                size_t va, vb, vc;
-                if (i == 0) {
-                    va = t.v1;
-                    vb = t.v2;
-                    vc = t.v3;
-                } else if (i == 1) {
-                    va = t.v2;
-                    vb = t.v3;
-                    vc = t.v1;
-                } else {
-                    va = t.v3;
-                    vb = t.v1;
-                    vc = t.v2;
-                }
+            // check vn -> va-vb-vc
+            if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
+                frontier.unmark_edge(va, vc);
+                const size_t tri_index1 = current_index;
+                const size_t tri_index2 = n;
 
+                std::vector _n1 = {tri_index1};
+                if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
+                    _n1.emplace_back(t_1);
+                if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
+                    _n1.emplace_back(t_2);
 
-                // va-vc opposite in neighbor triangle
-                size_t vn;
-                if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
-                                                neighbor.v3 == vc && neighbor.v2 == va)))
-                    vn = neighbor.v1;
-                else if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
-                                                     neighbor.v3 == vc && neighbor.v1 == va)))
-                    vn = neighbor.v2;
-                else if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
-                                                     neighbor.v2 == vc && neighbor.v1 == va)))
-                    vn = neighbor.v3;
-                else continue;
+                const Triangle new1 = {vn, va, vb, _n1};
 
-                // check vn -> va-vb-vc
-                if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
-                    frontier.unmark_edge(va, vc);
-                    const size_t tri_index1 = current_index;
-                    const size_t tri_index2 = n;
+                std::vector _n2 = {tri_index2};
+                if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
+                    _n1.emplace_back(t_3);
+                if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
+                    _n1.emplace_back(t_4);
+                const Triangle new2 = {vn, vb, vc, _n2};
 
-                    std::vector _n1 = {tri_index1};
-                    if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
-                        _n1.emplace_back(t_1);
-                    if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
-                        _n1.emplace_back(t_2);
+                frontier.insert_edge(vn, vb, tri_index);
 
-                    const Triangle new1 = {vn, va, vb, _n1};
-
-                    std::vector _n2 = {tri_index2};
-                    if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
-                        _n1.emplace_back(t_3);
-                    if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
-                        _n1.emplace_back(t_4);
-                    const Triangle new2 = {vn, vb, vc, _n2};
-
-                    frontier.insert_edge(vn, vb, tri_index);
-
-                    triangles[tri_index2] = new1;
-                    frontier.unmark_edge(vn, va);
-                    frontier.unmark_edge(va, vb);
-                    frontier.insert_edge(vn, va, tri_index2);
-                    frontier.insert_edge(va, vb, tri_index2);
-                    triangles[tri_index1] = new2;
-                    frontier.unmark_edge(vn, vc);
-                    frontier.unmark_edge(vb, vc);
-                    frontier.insert_edge(vn, vc, tri_index1);
-                    frontier.insert_edge(vb, vc, tri_index1);
-                    flipped = true;
-                    break;
-                }
+                triangles[tri_index2] = new1;
+                frontier.unmark_edge(vn, va);
+                frontier.unmark_edge(va, vb);
+                frontier.insert_edge(vn, va, tri_index2);
+                frontier.insert_edge(va, vb, tri_index2);
+                triangles[tri_index1] = new2;
+                frontier.unmark_edge(vn, vc);
+                frontier.unmark_edge(vb, vc);
+                frontier.insert_edge(vn, vc, tri_index1);
+                frontier.insert_edge(vb, vc, tri_index1);
+                flipped = true;
             }
 
             if (!flipped && !visited.contains(n)) {
