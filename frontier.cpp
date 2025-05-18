@@ -28,8 +28,9 @@ void Frontier::clear() {
 }
 
 FrontierNode *Frontier::get_node(const size_t &index) {
-    const auto it = hash_table.find(index);
-    return it != hash_table.end() ? it->second : nullptr;
+    if (auto it = hash_table.find(index); it != hash_table.end())
+        return it->second;
+    return nullptr;
 }
 
 void Frontier::insert_to_hash(FrontierNode *node) {
@@ -73,21 +74,11 @@ void Frontier::insert_sorted(FrontierNode *node) {
     insert_to_hash(node);
 }
 
-void Frontier::insert_between(FrontierNode *node, FrontierNode *left, FrontierNode *right,
-                              const std::vector<Point> &points) {
-    if (ccw(points[left->vertex_index], points[node->vertex_index], points[right->vertex_index])) {
-        // after r
-        node->prev = right;
-        node->next = right->next;
-        right->next->prev = node;
-        right->next = node;
-    } else {
-        node->prev = left;
-        node->next = left->next;
-        left->next->prev = node;
-        left->next = node;
-    }
-
+void Frontier::insert_between(FrontierNode *node, FrontierNode *left, FrontierNode *right) {
+    node->prev = left;
+    node->next = left->next;
+    right->prev = node;
+    left->next = node;
     if (node->theta > head->theta) {
         head = node;
     }
@@ -107,32 +98,29 @@ void Frontier::remove(const FrontierNode *node) {
     delete node;
 }
 
-std::pair<std::pair<FrontierNode *, FrontierNode *>, size_t> Frontier::find_edge(const Point &P, const Point &O,
-    const std::vector<Point> &points) {
-    double distance = -1;
-    size_t triangle_index = 0;
+std::pair<std::pair<FrontierNode *, FrontierNode *>, size_t> Frontier::find_edge(const PolarPoint &P) const {
     std::pair<std::pair<FrontierNode *, FrontierNode *>, size_t> result = {
         {nullptr, nullptr},
         std::numeric_limits<size_t>::max()
     };
-    for (auto const edge: edges) {
-        Point A = points[edge.a];
-        Point B = points[edge.b];
-
-        if (intersect(P, O, A, B)) {
-            FrontierNode *node_a = get_node(edge.a);
-            FrontierNode *node_b = get_node(edge.b);
-            const double current_dist = point_segment_distance(O, A, B);
-            if ((current_dist - distance) > EPS || (current_dist - distance) < EPS && edge.triangle_index >=
-                triangle_index) {
-                triangle_index = edge.triangle_index;
-                distance = current_dist;
-                if (node_a->theta < node_b->theta)
-                    result = std::make_pair(std::make_pair(node_b, node_a), edge.triangle_index);
-                else result = std::make_pair(std::make_pair(node_a, node_b), edge.triangle_index);
-            }
+    FrontierNode *current = head;
+    do {
+        FrontierNode *next = current->next;
+        bool inside = false;
+        if (current->theta > next->theta) {
+            inside = P.theta <= current->theta && P.theta >= next->theta;
+        } else if (current->theta < next->theta) {
+            inside = P.theta <= current->theta && P.theta <= next->theta || P.theta >= next->theta;
         }
-    }
+        if (inside) {
+            const size_t v1 = current->vertex_index;
+            const size_t v2 = next->vertex_index;
+            std::optional<size_t> tri = get_edge(v1, v2);
+            return std::make_pair(std::make_pair(current, next), tri.value());
+        }
+        current = current->next;
+    } while (current != head);
+
     return result;
 }
 
@@ -145,7 +133,7 @@ std::optional<size_t> Frontier::get_edge(const size_t a, const size_t b) const {
 
 
 void Frontier::insert_edge(const size_t u, const size_t v, const size_t t) {
-    edges.insert(EdgeKey(u, v, t));
+    edges.emplace(u, v, t);
 }
 
 void Frontier::unmark_edge(size_t u, size_t v) {

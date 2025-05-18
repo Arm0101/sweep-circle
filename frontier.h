@@ -3,7 +3,6 @@
 
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 #include <optional>
 #include "geometry.h"
 #include "edgekey.h"
@@ -30,7 +29,7 @@ public:
 
     void insert_sorted(FrontierNode *node);
 
-    void insert_between(FrontierNode *node, FrontierNode *left, FrontierNode *right, const std::vector<Point> &points);
+    void insert_between(FrontierNode *node, FrontierNode *left, FrontierNode *right);
 
     void remove(const FrontierNode *node);
 
@@ -40,8 +39,7 @@ public:
 
     void print() const;
 
-    [[nodiscard]] std::pair<std::pair<FrontierNode *, FrontierNode *>, size_t> find_edge(const Point &P, const Point &O,
-        const std::vector<Point> &points);
+    [[nodiscard]] std::pair<std::pair<FrontierNode *, FrontierNode *>, size_t> find_edge(const PolarPoint &P) const;
 
     [[nodiscard]] std::optional<size_t> get_edge(size_t, size_t) const;
 

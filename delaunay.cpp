@@ -33,10 +33,45 @@ void sort_points(std::vector<PolarPoint> &points) {
     std::sort(points.begin(), points.end(), [](const PolarPoint &a, const PolarPoint &b) {
         if (std::abs(a.r - b.r) > EPS)
             return a.r < b.r;
-        return a.theta < b.theta;
+        return a.theta > b.theta;
     });
 }
 
+void get_common_edge(const Triangle &t, const Triangle &neighbor, size_t &va, size_t &vb, size_t &vc, size_t &vn) {
+    for (int i = 0; i < 3; ++i) {
+        if (i == 0) {
+            va = t.v1;
+            vb = t.v2;
+            vc = t.v3;
+        } else if (i == 1) {
+            va = t.v2;
+            vb = t.v3;
+            vc = t.v1;
+        } else {
+            va = t.v3;
+            vb = t.v1;
+            vc = t.v2;
+        }
+
+
+        // va-vc opposite in neighbor triangle
+        if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
+                                        neighbor.v3 == vc && neighbor.v2 == va))) {
+            vn = neighbor.v1;
+            return;
+        }
+        if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
+                                        neighbor.v3 == vc && neighbor.v1 == va))) {
+            vn = neighbor.v2;
+            return;
+        }
+        if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
+                                        neighbor.v2 == vc && neighbor.v1 == va))) {
+            vn = neighbor.v3;
+            return;
+        }
+    }
+}
 
 void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
               std::vector<Triangle> &triangles, Frontier &frontier) {
@@ -49,81 +84,50 @@ void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
         size_t current_index = to_process.top();
         to_process.pop();
 
-        if (visited.contains(current_index)) continue;
-        visited.insert(current_index);
+        if (!visited.insert(current_index).second) continue;
 
         Triangle &t = triangles[current_index];
 
         for (size_t n: t.neighbors) {
             Triangle &neighbor = triangles[n];
             bool flipped = false;
+            size_t va, vb, vc, vn;
+            get_common_edge(t, neighbor, va, vb, vc, vn);
 
-            for (int i = 0; i < 3; ++i) {
-                size_t va, vb, vc;
-                if (i == 0) {
-                    va = t.v1;
-                    vb = t.v2;
-                    vc = t.v3;
-                } else if (i == 1) {
-                    va = t.v2;
-                    vb = t.v3;
-                    vc = t.v1;
-                } else {
-                    va = t.v3;
-                    vb = t.v1;
-                    vc = t.v2;
-                }
+            // check vn -> va-vb-vc
+            if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
+                frontier.unmark_edge(va, vc);
+                const size_t tri_index1 = current_index;
+                const size_t tri_index2 = n;
 
+                std::vector _n1 = {tri_index1};
+                if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
+                    _n1.emplace_back(t_1);
+                if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
+                    _n1.emplace_back(t_2);
 
-                // va-vc opposite in neighbor triangle
-                size_t vn;
-                if ((neighbor.v1 != vb) && ((neighbor.v2 == vc && neighbor.v3 == va) || (
-                                                neighbor.v3 == vc && neighbor.v2 == va)))
-                    vn = neighbor.v1;
-                else if ((neighbor.v2 != vb) && ((neighbor.v1 == vc && neighbor.v3 == va) || (
-                                                     neighbor.v3 == vc && neighbor.v1 == va)))
-                    vn = neighbor.v2;
-                else if ((neighbor.v3 != vb) && ((neighbor.v1 == vc && neighbor.v2 == va) || (
-                                                     neighbor.v2 == vc && neighbor.v1 == va)))
-                    vn = neighbor.v3;
-                else continue;
+                const Triangle new1 = {vn, va, vb, _n1};
 
-                // check vn -> va-vb-vc
-                if (in_circle(input_points[t.v1], input_points[t.v3], input_points[t.v2], input_points[vn])) {
-                    frontier.unmark_edge(va, vc);
-                    const size_t tri_index1 = current_index;
-                    const size_t tri_index2 = n;
+                std::vector _n2 = {tri_index2};
+                if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
+                    _n1.emplace_back(t_3);
+                if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
+                    _n1.emplace_back(t_4);
+                const Triangle new2 = {vn, vb, vc, _n2};
 
-                    std::vector _n1 = {tri_index1};
-                    if (auto t_1 = frontier.get_edge(vn, va).value(); t_1 != tri_index1)
-                        _n1.emplace_back(t_1);
-                    if (auto t_2 = frontier.get_edge(va, vb).value(); t_2 != tri_index1)
-                        _n1.emplace_back(t_2);
+                frontier.insert_edge(vn, vb, tri_index);
 
-                    const Triangle new1 = {vn, va, vb, _n1};
-
-                    std::vector _n2 = {tri_index2};
-                    if (auto t_3 = frontier.get_edge(vn, vc).value(); t_3 != tri_index2)
-                        _n1.emplace_back(t_3);
-                    if (auto t_4 = frontier.get_edge(vc, vb).value(); t_4 != tri_index2)
-                        _n1.emplace_back(t_4);
-                    const Triangle new2 = {vn, vb, vc, _n2};
-
-                    frontier.insert_edge(vn, vb, tri_index);
-
-                    triangles[tri_index2] = new1;
-                    frontier.unmark_edge(vn, va);
-                    frontier.unmark_edge(va, vb);
-                    frontier.insert_edge(vn, va, tri_index2);
-                    frontier.insert_edge(va, vb, tri_index2);
-                    triangles[tri_index1] = new2;
-                    frontier.unmark_edge(vn, vc);
-                    frontier.unmark_edge(vb, vc);
-                    frontier.insert_edge(vn, vc, tri_index1);
-                    frontier.insert_edge(vb, vc, tri_index1);
-                    flipped = true;
-                    break;
-                }
+                triangles[tri_index2] = new1;
+                frontier.unmark_edge(vn, va);
+                frontier.unmark_edge(va, vb);
+                frontier.insert_edge(vn, va, tri_index2);
+                frontier.insert_edge(va, vb, tri_index2);
+                triangles[tri_index1] = new2;
+                frontier.unmark_edge(vn, vc);
+                frontier.unmark_edge(vb, vc);
+                frontier.insert_edge(vn, vc, tri_index1);
+                frontier.insert_edge(vb, vc, tri_index1);
+                flipped = true;
             }
 
             if (!flipped && !visited.contains(n)) {
@@ -136,8 +140,10 @@ void legalize(const size_t &tri_index, const std::vector<Point> &input_points,
 
 std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     Frontier frontier;
-    std::vector<Triangle> triangles = {};
-    std::vector<PolarPoint> points = {};
+    std::vector<Triangle> triangles;
+    std::vector<PolarPoint> points;
+    points.reserve(input_points.size());
+    triangles.reserve(input_points.size());
     // 1. selecting the origin of the polar coordinates O
     double min_x = std::numeric_limits<double>::max();
     double max_x = std::numeric_limits<double>::lowest();
@@ -162,8 +168,9 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     size_t i2_index = std::numeric_limits<size_t>::max();
 
     // pick a seed point close to the centroid
+    Point c = {cx, cy};
     for (std::size_t i = 0; i < input_points.size(); i++) {
-        if (const double d = distance({cx, cy}, input_points[i]); d < min_dist) {
+        if (const double d = distance(c, input_points[i]); d < min_dist) {
             i0_index = i;
             min_dist = d;
         }
@@ -174,7 +181,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     // find the point closest to the seed
     for (std::size_t i = 0; i < input_points.size(); i++) {
         if (i == i0_index) continue;
-        if (const double d = distance(i0, input_points[i]); d < min_dist && d > 0.0) {
+        if (const double d = distance(i0, input_points[i]); d < min_dist) {
             i1_index = i;
             min_dist = d;
         }
@@ -197,11 +204,14 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
         std::swap(i1_index, i2_index);
     }
 
-    const auto [_origin_x, _origin_y] = circumcenter(i0, i1, i2);
-    const Point origin{_origin_x, _origin_y};
+    // 4. construction of the first triangle
+    triangles.emplace_back(Triangle{i0_index, i1_index, i2_index, {}});
+
+    // center O
+    const Point O = centroid(input_points[i0_index], input_points[i1_index], input_points[i2_index]);
 
     //2. calculating the polar coordinates of input points
-    points = calculate_polar_coords(input_points, origin);
+    points = calculate_polar_coords(input_points, O);
 
     const double i0_theta = points[i0_index].theta;
     const double i1_theta = points[i1_index].theta;
@@ -209,13 +219,6 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
     //3. sorting input points in increasing distances from O
     sort_points(points);
-
-    // 4. construction of the first triangle
-    triangles.emplace_back(Triangle{i0_index, i1_index, i2_index, {}});
-
-    // center O
-    const Point O = centroid(input_points[i0_index], input_points[i1_index], input_points[i2_index]);
-
 
     //5. determination of the initial frontier.
 
@@ -226,20 +229,17 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     frontier.insert_edge(i0_index, i1_index, 0);
     frontier.insert_edge(i1_index, i2_index, 0);
     frontier.insert_edge(i2_index, i0_index, 0);
-    // Triangulation
 
-    for (size_t i = 0; i < points.size(); i++) {
-        const size_t index = points[i].index;
-        if (index == i0_index || index == i1_index || index == i2_index) continue;
-        Point p = input_points[index];
-        PolarPoint pp{};
-        for (const auto &_point: points) {
-            if (_point.index == index) {
-                pp = _point;
-                break;
-            }
-        }
-        auto [edg, tri] = frontier.find_edge(p, O, input_points);
+    std::vector<PolarPoint> points_to_process;
+    points_to_process.reserve(input_points.size() - 3);
+    for (const auto &p: points) {
+        if (const size_t index = p.index; index == i0_index || index == i1_index || index == i2_index) continue;
+        points_to_process.emplace_back(p);
+    }
+
+    // Triangulation
+    for (const auto &pp: points_to_process) {
+        auto [edg, tri] = frontier.find_edge(pp);
         auto [vl, vr] = edg;
         // create triangle i,L,R and legalize it recursively
         size_t _i0 = pp.index;
@@ -248,12 +248,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
         const size_t tri_index = triangles.size();
 
-        vr->triangle_index = tri_index;
-        vl->triangle_index = tri_index - 1;
-
         if (ccw(input_points[_i0], input_points[_i1], input_points[_i2])) {
-            vr->triangle_index = tri_index - 1;
-            vl->triangle_index = tri_index;
             std::swap(_i1, _i2);
         }
 
@@ -264,8 +259,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
         triangles[tri].neighbors.emplace_back(tri_index);
 
-        frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr, input_points);
-        // cout << "For point: " << pp.index << " " << vl->vertex_index << " " << vr->vertex_index << endl;
+        frontier.insert_between(new FrontierNode(pp.index, tri_index, pp.theta), vl, vr);
         legalize(tri_index, input_points, triangles, frontier);
     }
 
@@ -277,7 +271,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
     while (changed) {
         changed = false;
         if (!current) break;
-
+        if (triangles.size() == 5) break;
         FrontierNode *start = current;
         do {
             FrontierNode *a = current;
@@ -286,8 +280,7 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
 
             if (a->vertex_index == b->vertex_index || b->vertex_index == c->vertex_index || c->vertex_index == a->
                 vertex_index) {
-                current = current->next;
-                continue;
+                break;
             }
 
             const Point &pa = input_points[a->vertex_index];
@@ -321,7 +314,6 @@ std::vector<Triangle> triangulate(const std::vector<Point> &input_points) {
                 changed = true;
                 break;
             }
-
             current = current->next;
         } while (current != start);
     }
