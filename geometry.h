@@ -20,8 +20,9 @@ struct Triangle {
     std::size_t v3;
     std::vector<std::size_t> neighbors;
 
-    Triangle(const std::size_t a, const std::size_t b, const std::size_t c, const std::vector<std::size_t>& n)
-        : v1(a), v2(b), v3(c), neighbors(n) {}
+    Triangle(const std::size_t a, const std::size_t b, const std::size_t c, const std::vector<std::size_t> &n)
+        : v1(a), v2(b), v3(c), neighbors(n) {
+    }
 };
 
 
@@ -61,7 +62,7 @@ inline double orientation(const Point &a, const Point &b, const Point &c) {
 inline double distance(const Point &a, const Point &b) {
     const double dx = a.x - b.x;
     const double dy = a.y - b.y;
-    return std::sqrt(dx * dx + dy * dy);
+    return dx * dx + dy * dy;
 }
 
 inline double circumradius(const Point &a, const Point &b, const Point &c) {

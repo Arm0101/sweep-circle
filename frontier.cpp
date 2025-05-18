@@ -28,8 +28,9 @@ void Frontier::clear() {
 }
 
 FrontierNode *Frontier::get_node(const size_t &index) {
-    const auto it = hash_table.find(index);
-    return it != hash_table.end() ? it->second : nullptr;
+    if (auto it = hash_table.find(index); it != hash_table.end())
+        return it->second;
+    return nullptr;
 }
 
 void Frontier::insert_to_hash(FrontierNode *node) {
@@ -132,7 +133,7 @@ std::optional<size_t> Frontier::get_edge(const size_t a, const size_t b) const {
 
 
 void Frontier::insert_edge(const size_t u, const size_t v, const size_t t) {
-    edges.insert(EdgeKey(u, v, t));
+    edges.emplace(u, v, t);
 }
 
 void Frontier::unmark_edge(size_t u, size_t v) {
